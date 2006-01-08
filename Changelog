@@ -1,0 +1,37 @@
+
+// -- macro declarations: start reading with first headline
++BC:\B<\C<__body__>>
+
+// -- end of "preface"
+
+
+=0.02
+
+* added the template support the previous version was
+  documented to have;
+	
+* removed attribute targethandle - with templates, files
+  can be opened by the template engine, so a general
+  handling is not always appropriate;
+
+* added buildFilename() to allow generalized algorithms
+  to work - code in this class must work for child
+  classes as well;
+
+* added buildTargetLink() to build link targets in one
+  place;
+
+* fixed a letter case error - sequence anchor tags were
+  written uppercased;
+  
+* now storing an array reference for each page in the
+  slides attribute, allowing using code (like template
+  engines) to distinguish pages;
+
+* nested tables now supported;
+
+* added first tests (POD tests only);
+	
+=0.01
+
+New.
