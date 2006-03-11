@@ -5,7 +5,24 @@
 # ---------------------------------------------------------------------------------------
 # version | date     | author   | changes
 # ---------------------------------------------------------------------------------------
-# 0.02    |01.01.2006| JSTENZEL | this is a cumulated history entry:
+# 0.04    |02-21-2006| JSTENZEL | the <embedded-(x)html> tags included for embedded parts
+#         |          |          | made the produced XHTML invalid, deleted (using a
+#         |          |          | dirty manipulation of an intermediate XML::Generator
+#         |          |          | object, hopefully this can be changed in the future);
+#         |03-05-2006| JSTENZEL | index now produced as better XHTML;
+#         |          | JSTENZEL | in XHTML, <A> has an id attribute, but no name;
+#         |          | JSTENZEL | added buildAnchorId();
+#         |          | JSTENZEL | nested lists are wrapped in list points, for correct XHTML;
+#         |          | JSTENZEL | anchors now built as simple strings on base of MD5
+#         |          |          | checksums, to get valid XHTML addresses;
+#         |03-09-2006| JSTENZEL | LOCALTOC: nested list wrapped in list points;
+#         |          | JSTENZEL | index relation <div> now has an own class, "_ppIndexRelated";
+#         |03-11-2006| JSTENZEL | U: in XHTML strict, there is no <u> tag, so now CSS is used;
+# 0.03    |01-21-2006| JSTENZEL | buildFilename() uses File::Spec::catfile() now;
+#         |          | JSTENZEL | bugfix in buildTargetLink() which could result in
+#         |          |          | links to labels instead of to pages (wrong assumption
+#         |          |          | about current page);
+# 0.02    |01-01-2006| JSTENZEL | this is a cumulated history entry:
 #         |          | JSTENZEL | added the template support the previous version was
 #         |          |          | documented to have;
 #         |          | JSTENZEL | removed attribute targethandle - with templates, files
@@ -21,8 +38,8 @@
 #         |          | JSTENZEL | now storing an array reference for each page in the
 #         |          |          | slides attribute, allowing using code (like template
 #         |          |          | engines) to distinguish pages;
-#         |06.01.2006| JSTENZEL | allowing nested tables now;
-# 0.01    |09.09.2003| JSTENZEL | new.
+#         |01-06-2006| JSTENZEL | allowing nested tables now;
+# 0.01    |09-09-2003| JSTENZEL | new.
 # ---------------------------------------------------------------------------------------
 
 # = POD SECTION =========================================================================
@@ -33,7 +50,7 @@ B<PerlPoint::Generator::XML::XHTML> - generates XHTML via XML
 
 =head1 VERSION
 
-This manual describes version B<0.02>.
+This manual describes version B<0.04>.
 
 =head1 SYNOPSIS
 
@@ -58,8 +75,8 @@ require 5.00503;
 package PerlPoint::Generator::XML::XHTML;
 
 # declare package version
-$VERSION=0.02;
-$AUTHOR='J. Stenzel (perl@jochen-stenzel.de), 2003-2004';
+$VERSION=0.04;
+$AUTHOR='J. Stenzel (perl@jochen-stenzel.de), 2003-2006';
 
 
 
@@ -81,6 +98,8 @@ use fields qw(
 
 # load modules
 use Carp;
+use File::Spec::Functions;
+use Digest::MD5 qw(md5_hex);
 use PerlPoint::Generator::XML;
 use PerlPoint::Constants qw(:DEFAULT :templates);
 
@@ -345,10 +364,10 @@ sub formatHeadline
   my $tag="h$item->{cfg}{data}{level}";
   my $path=$page->path(type=>'fpath', mode=>'full', delimiter=>'|');
 
-  # build the headline, store it with anchors
+  # build the headline, store it with anchors (anchors as MD 5 checksums)
   (
-   $me->{xml}->a({name=>$item->{cfg}{data}{full}}),
-   $path ? $me->{xml}->a({name=>join('|', $path, $item->{cfg}{data}{full})}) : (),
+   $me->{xml}->a({id=>$me->buildAnchorId($item->{cfg}{data}{full})}),
+   $path ? $me->{xml}->a({id=>$me->buildAnchorId(join('|', $path, $item->{cfg}{data}{full}))}) : (),
    $me->{xml}->$tag(@{$item->{parts}}),
   )
  }
@@ -368,14 +387,32 @@ sub formatTag
   my ($directive, $xmltag, @results)=('');
 
   # handle the various tags
-  if ($item->{cfg}{data}{name} eq 'EMBED')
+  if ($item->{cfg}{data}{name} eq 'A')
+    {
+     # anchor: build result string
+     push(
+          @results,
+          $me->{$me->{xmlmode}}->a(
+                                   {
+                                    # this is the difference to the XML generator handling:
+                                    # valid XHTML tag names are required to be very simple strings,
+                                    # so we use *checksums*
+                                    id => $me->buildAnchorId($item->{cfg}{data}{options}{name}),
+                                   },
+                                   @{$item->{parts}},
+                                  )
+         );
+    }
+  elsif ($item->{cfg}{data}{name} eq 'EMBED')
     {
      # embedded (X)HTML
      if ($item->{cfg}{data}{options}{lang}=~/^X?HTML$/i)
        {
         # just pass parts through (supplying them via XML::Generator object, not as string)
-        my $pseudotag="embedded-$item->{cfg}{data}{options}{lang}";
-        push(@results, $me->{xmlready}->$pseudotag(@{$item->{parts}}));
+        my $dummytag="DUMMYTAG$$";
+        my $xmlobject=$me->{xmlready}->$dummytag(@{$item->{parts}});
+        @$xmlobject=map {/^<\/?$dummytag>$/ ? () : $_} @$xmlobject;
+        push(@results, $xmlobject);
        }
     }
   elsif ($item->{cfg}{data}{name} eq 'F')
@@ -434,8 +471,8 @@ sub formatTag
      my $anchors=$item->{cfg}{data}{options}{__anchors};
 
      # start with an anchor and a navigation bar ...
-     push(@results, $me->{$me->{xmlmode}}->a({name=>(my $bar)=$me->{anchorfab}->generic}));
-     push(@results, map {$anchors{$_}=$me->{anchorfab}->generic; $me->{$me->{xmlmode}}->a({href=>"#$anchors{$_}"}, $_)} sort keys %$anchors);
+     push(@results, $me->{$me->{xmlmode}}->a({id=>(my $bar)=$me->buildAnchorId($me->{anchorfab}->generic)}));
+     push(@results, map {$anchors{$_}=$me->buildAnchorId($me->{anchorfab}->generic); $me->{$me->{xmlmode}}->a({href=>"#$anchors{$_}"}, $_)} sort keys %$anchors);
      push(@results, $me->{$me->{xmlmode}}->hr());
 
      # now, traverse all groups and build their index
@@ -444,17 +481,15 @@ sub formatTag
         # make the character a "headline", including an anchor and linking back to the navigation bar
         push(
              @results,
-             $me->{$me->{xmlmode}}->p(
-                                      $me->{$me->{xmlmode}}->a({name=>$anchors{$group}}),
-                                      $me->{$me->{xmlmode}}->h1($me->{$me->{xmlmode}}->a({href=>"#$bar"}, $group))
-                                     )
+             $me->{$me->{xmlmode}}->p($me->{$me->{xmlmode}}->a({id=>$anchors{$group}})),
+             $me->{$me->{xmlmode}}->h1($me->{$me->{xmlmode}}->a({href=>"#$bar"}, $group))
             );
 
         # now add all the index entries
         push(
              @results, 
              $me->{$me->{xmlmode}}->div(
-                                         {class => 'indexgroup'},
+                                        {class => 'indexgroup'},
                                         map
                                          {
                                           # scopy
@@ -501,7 +536,10 @@ sub formatTag
      my $listtag=$item->{cfg}{data}{options}{format} eq 'enumerated' ? 'ol' : 'ul';
 
      # write list structure
-     @results=$me->{$me->{xmlmode}}->span(
+     @results=$me->{$me->{xmlmode}}->div(
+                                          # own class for easier CSS access
+                                          {class=>'_ppIndexRelated'},
+
                                           # start with an intro, if specified
                                           exists $item->{cfg}{data}{options}{intro} ? $me->{$me->{xmlmode}}->p($item->{cfg}{data}{options}{intro}) : (),
 
@@ -510,12 +548,12 @@ sub formatTag
                                                                           map
                                                                            {
                                                                             # get page title
-                                                                            my $page=$me->page($_);
-                                                                            my $title=$page->path(type=>'spath', mode=>'title');
-                                                                            $title=join('', (map {"$_."} @{$page->path(type=>'npath', mode=>'array')}), " $title") if $item->{cfg}{data}{options}{format} eq 'numbers';
+                                                                            my $tpage=$me->page($_);
+                                                                            my $title=$tpage->path(type=>'spath', mode=>'title');
+                                                                            $title=join('', (map {"$_."} @{$tpage->path(type=>'npath', mode=>'array')}), " $title") if $item->{cfg}{data}{options}{format} eq 'numbers';
 
                                                                             # build list entry, type dependent (as link or plain string)
-                                                                            $me->{$me->{xmlmode}}->li($item->{cfg}{data}{options}{type} eq 'linked' ? $me->{$me->{xmlmode}}->a({href=>join('', '#', join('|', @{$page->path(type=>'spath', mode=>'array')}))}, $title) : $title);
+                                                                            $me->{$me->{xmlmode}}->li($item->{cfg}{data}{options}{type} eq 'linked' ? $me->{$me->{xmlmode}}->a({href=>$me->buildTargetLink($page, $_, $title, [@{$tpage->path(type=>'spath', mode=>'array')}])}, $title) : $title);
                                                                            } @$data,
                                                                          )
                                         );
@@ -555,15 +593,14 @@ sub formatTag
                    # path of the future chapter then)
                    $localHeadlinePath[$level-1]=$title;
 
+                   # get the absolute number of the upcoming chapter
+                   my $chapter=($me->getChapterByPath([@localHeadlinePath[0..$level-1]]))[0]->[0];
+
                    # supply the path of the upcoming chapter
                    @results=$me->{$me->{xmlmode}}->a(
-                                                      {
-                                                       href => join('', '#',
-                                                                    join('|',
-                                                                         map {defined($_) ? $_ : ''} @localHeadlinePath[0..$level-1],
-                                                                        ),
-                                                                   ),
-                                                      },
+                                                     {
+                                                      href => $me->buildTargetLink($page, $chapter, $title, [@localHeadlinePath[0..$level-1]])
+                                                     },
                                                      $title,
                                                     );
                   }
@@ -601,7 +638,7 @@ sub formatTag
               if ($level<@buffered)
                 {
                  # complete closed levels and integrate them as lists
-                 push(@{$buffered[$_-1]}, $me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]})),
+                 push(@{$buffered[$_-1]}, $me->{xml}->li($me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))),
                    for reverse $level..@buffered-1;
                  
                  # delete all buffer levels which were integrated,
@@ -619,7 +656,7 @@ sub formatTag
              }
 
            # close open lists (down to the initial level depth)
-           push(@{$buffered[$_-1]}, $me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]})),
+           push(@{$buffered[$_-1]}, $me->{xml}->li($me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))),
              for reverse $startLevel+1 .. @buffered-1;
 
            # finally, build the list (on startup level), including nested lists eventually
@@ -780,9 +817,7 @@ sub formatTag
      if (exists $item->{cfg}{data}{options}{name})
        {
         @results=$me->{$me->{xmlmode}}->a(
-                                           {
-                                            name => $item->{cfg}{data}{options}{name},
-                                           },
+                                          {id => $me->buildAnchorId($item->{cfg}{data}{options}{name})},
                                           $item->{cfg}{data}{options}{__nr__},
                                          );
        }
@@ -823,13 +858,21 @@ sub formatTag
                                         @{$item->{parts}} ? @{$item->{parts}} : '&nbsp;'
                                        );
     }
+  elsif ($item->{cfg}{data}{name} eq 'U')
+    {
+     # in XHTML, there is no <u> tag - use CSS instead
+     @results=$me->{$me->{xmlmode}}->span(
+                                          {
+                                           style => 'text-decoration: underline;',
+                                          },
+                                          @{$item->{parts}},
+                                         );
+    }
   elsif ($item->{cfg}{data}{name} eq 'X')
     {
      # index entry: transform it into an anchor
      @results=$me->{$me->{xmlmode}}->a(
-                                        {
-                                         name => $item->{cfg}{data}{options}{__anchor},
-                                        },
+                                       {id => $me->buildAnchorId($item->{cfg}{data}{options}{__anchor})},
                                        (exists $item->{cfg}{data}{options}{mode} and lc($item->{cfg}{data}{options}{mode}) eq 'index_only') ? () : @{$item->{parts}},
                                       );
     }
@@ -878,6 +921,59 @@ sub formatTag
   # supply results
   # warn @results;
   @results;
+ }
+
+
+# in XHTML, nested lists need to be wrapped into a list point - unordered lists
+sub formatUlist
+ {
+  # get parameters
+  ((my __PACKAGE__ $me), my ($page, $item))=@_;
+
+  # call base method, which will check the parameters,
+  # and supply a wrapped object if necessary
+  $me->wrapNestedList($me->SUPER::formatUlist($page, $item), $item);
+ }
+
+# in XHTML, nested lists need to be wrapped into a list point - ordered lists
+sub formatOlist
+ {
+  # get parameters
+  ((my __PACKAGE__ $me), my ($page, $item))=@_;
+
+  # call base method, which will check the parameters,
+  # and supply a wrapped object if necessary
+  $me->wrapNestedList($me->SUPER::formatOlist($page, $item), $item);
+ }
+
+# in XHTML, nested lists need to be wrapped into a list point - definition lists
+sub formatDlist
+ {
+  # get parameters
+  ((my __PACKAGE__ $me), my ($page, $item))=@_;
+
+  # call base method, which will check the parameters,
+  # and supply a wrapped object if necessary
+  $me->wrapNestedList($me->SUPER::formatDlist($page, $item), $item);
+ }
+
+
+# wrap a list in case it is nested (in XHTML, nested lists are list points)
+sub wrapNestedList
+ {
+  # get and check parameters
+  ((my __PACKAGE__ $me), my ($object, $item))=@_;
+  confess "[BUG] Missing object parameter.\n" unless $me;
+  confess "[BUG] Object parameter is no ", __PACKAGE__, " object.\n" unless ref $me and $me->isa(__PACKAGE__);
+  confess "[BUG] Missing object data parameter.\n" unless $object;
+  confess "[BUG] Missing item parameter.\n" unless defined $item;
+
+  # check if the parent level is a list (TODO: definition lists are more complex!)
+  my $parent=$item->{context}[-1];
+  my $wrapper=($parent==DIRECTIVE_ULIST or $parent==DIRECTIVE_OLIST) ? 'li' : $parent==DIRECTIVE_DLIST ? 'dd' : undef;
+
+  # provide the parts
+  $wrapper ? $me->{xml}->$wrapper($object) : $object;
  }
 
 
@@ -1039,8 +1135,8 @@ sub buildFilename
   confess "[BUG] Missing object parameter.\n" unless $me;
   confess "[BUG] Object parameter is no ", __PACKAGE__, " object.\n" unless ref $me and $me->isa(__PACKAGE__);
 
-  # supply resulting name
-  "$me->{options}{targetdir}/$me->{options}{prefix}$me->{options}{suffix}";
+  # supply resulting name - ignore whatever (page nr) parameter might be set
+  catfile($me->{options}{targetdir}, "$me->{options}{prefix}$me->{options}{suffix}");
  }
 
 
@@ -1060,20 +1156,35 @@ sub buildTargetLink
 
   # set "same page" flag
   my $targetPage;
-  my $samePageFlag=($targetPage=$me->buildFilename($targetPageNr)) eq $me->buildFilename($page->nr);
+  my $samePageFlag=($targetPage=$me->buildFilename($targetPageNr)) eq $me->buildFilename($page->nr-1);
 
   # build page part - can be omitted if we are on the target page already
+  # (use an empty string then to get a "#" in the final join() below)
   my $pagePart=$samePageFlag ? '' : $targetPage;
 
   # label part - if we have no label, we use the chapter path if we are on the target page,
   # otherwise we link to the entire page which means that we omit the label part
-  my $labelPart=$label ? "#$label" : ($samePageFlag and @$titlePath) ? join('', '#', join('|', @$titlePath)) : '';
+  # (use an empty list then to get no "#" in the final join() below)
+  # use Data::Dumper; warn Dumper $titlePath;
+  my @labelPart=$label ? $me->buildAnchorId($label) : ($samePageFlag and @$titlePath) ? $me->buildAnchorId(join('|', @$titlePath)) : ();
 
   # supply result
-  "$pagePart$labelPart";
+  join('#', $pagePart, @labelPart);
 }
 
 
+# build an anchor id
+sub buildAnchorId
+ {
+  # get and check parameters
+  ((my __PACKAGE__ $me), (my ($name)))=@_;
+  confess "[BUG] Missing object parameter.\n" unless $me;
+  confess "[BUG] Object parameter is no ", __PACKAGE__, " object.\n" unless ref $me and $me->isa(__PACKAGE__);
+  confess "[BUG] Missing anchor name parameter.\n" unless $name;
+
+  # supply id (as a checksum, but beginning with a prefix (XHTML achor ids need to begin with a letter))
+  join('', 'MD5_', md5_hex($name));
+ }
 
 
 # flag successfull loading

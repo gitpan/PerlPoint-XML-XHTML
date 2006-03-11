@@ -11,7 +11,7 @@ use ExtUtils::MakeMaker;
 # the package requires modern perl
 require 5.00503;
 
-my $version='0.02';
+my $version='0.04';
 
 # write makefile
 $ok=WriteMakefile(
@@ -19,8 +19,9 @@ $ok=WriteMakefile(
                   ABSTRACT     => 'PerlPoint fomatters to produce XHTML via the XML language module.',
                   VERSION      => $version,
                   PREREQ_PM    => {
-                                   PerlPoint::Generator::XML => 0.01,
+                                   Digest::MD5               => 0,
                                    Memoize                   => 1,
+                                   PerlPoint::Generator::XML => 0.01,
                                    Test::Harness             => 1.25,
                                    Test::More                => 0.11,
                                   },

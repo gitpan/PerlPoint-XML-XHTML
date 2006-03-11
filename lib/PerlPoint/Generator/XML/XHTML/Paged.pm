@@ -5,7 +5,12 @@
 # ---------------------------------------------------------------------------------------
 # version | date     | author   | changes
 # ---------------------------------------------------------------------------------------
-# 0.01    |07.05.2004| JSTENZEL | new.
+# 0.02    |01-21-2006| JSTENZEL | building filenames we use File::Spec::catfile() now;
+#         |03-05-2006| JSTENZEL | in XHTML, <A> has an id attribute, but no name;
+#         |          | JSTENZEL | headlines do not need anchors (as each chapter has its
+#         |          |          | own page), deleted;
+#         |03-09-2006| JSTENZEL | LOCALTOC: nested list wrapped in list points;
+# 0.01    |05-07-2004| JSTENZEL | new.
 # ---------------------------------------------------------------------------------------
 
 # = POD SECTION =========================================================================
@@ -16,7 +21,7 @@ B<PerlPoint::Generator::XML::XHTML::Paged> - generates paged XHTML via XML
 
 =head1 VERSION
 
-This manual describes version B<0.01>.
+This manual describes version B<0.02>.
 
 =head1 SYNOPSIS
 
@@ -41,7 +46,7 @@ require 5.00503;
 package PerlPoint::Generator::XML::XHTML::Paged;
 
 # declare package version
-$VERSION=0.01;
+$VERSION=0.02;
 $AUTHOR='J. Stenzel (perl@jochen-stenzel.de), 2004';
 
 
@@ -61,6 +66,7 @@ use base qw(PerlPoint::Generator::XML::XHTML);
 use Carp;
 use Memoize;
 use File::Basename;
+use File::Spec::Functions;
 use PerlPoint::Generator::XML;
 use PerlPoint::Generator::Object::Page;
 use PerlPoint::Constants qw(:DEFAULT :templates);
@@ -117,16 +123,8 @@ sub formatHeadline
   confess "[BUG] Missing page data parameter.\n" unless $page;
   confess "[BUG] Missing item parameter.\n" unless defined $item;
 
-  # build the tag name and a path
-  my $tag='h1';
-  my $path=$page->path(type=>'fpath', mode=>'full', delimiter=>'|');
-
-  # build the headline, store it with anchors
-  (
-   $me->{xml}->a({name=>$item->{cfg}{data}{full}}),
-   $path ? $me->{xml}->a({name=>join('|', $path, $item->{cfg}{data}{full})}) : (),
-   $me->{xml}->$tag(@{$item->{parts}}),
-  )
+  # build the headline (no need to store anchors, as every chapter has its own page so chapter links will point to pages)
+  ($me->{xml}->h1(@{$item->{parts}}))
  }
 
 
@@ -153,7 +151,10 @@ sub formatTag
      my $xmllisttag=$item->{cfg}{data}{options}{format} eq 'enumerated' ? 'ol' : 'ul';
 
      # write list structure
-     @results=$me->{$me->{xmlmode}}->span(
+     @results=$me->{$me->{xmlmode}}->div(
+                                          # own class for easier CSS access
+                                          {class=>'_ppIndexRelated'},
+
                                           # start with an intro, if specified
                                           exists $item->{cfg}{data}{options}{intro} ? $me->{$me->{xmlmode}}->p($item->{cfg}{data}{options}{intro}) : (),
 
@@ -212,13 +213,13 @@ sub formatTag
         if ($item->{cfg}{data}{options}{format} eq 'bullets')
           {
            my $levelbuilder;
-           $levelbuilder=sub {$me->{xml}->ul(map {ref($_->[0]) ? $levelbuilder->($_) : $me->{xml}->li($plain ? $_->[1] : $link->(@$_));} @{$_[0]})};
+           $levelbuilder=sub {$me->{xml}->ul(map {ref($_->[0]) ? $me->{xml}->li($levelbuilder->($_)) : $me->{xml}->li($plain ? $_->[1] : $link->(@$_));} @{$_[0]})};
            @results=$levelbuilder->($wtoc);
           }
         elsif ($item->{cfg}{data}{options}{format} eq 'enumerated')
           {
            my $levelbuilder;
-           $levelbuilder=sub {$me->{xml}->ol(map {ref($_->[0]) ? $levelbuilder->($_) : $me->{xml}->li($plain ? $_->[1] : $link->(@$_));} @{$_[0]})};
+           $levelbuilder=sub {$me->{xml}->ol(map {ref($_->[0]) ? $me->{xml}->li($levelbuilder->($_)) : $me->{xml}->li($plain ? $_->[1] : $link->(@$_));} @{$_[0]})};
            @results=$levelbuilder->($wtoc);
           }
         elsif ($item->{cfg}{data}{options}{format} eq 'numbers')
@@ -306,7 +307,7 @@ sub finish
 
      # produce the TOC, if possible
      {
-      my $fn=join('/', $me->{options}{targetdir}, $me->buildFilename('toc'));
+      my $fn=catfile($me->{options}{targetdir}, $me->buildFilename('toc'));
       my $handle=new IO::File(">$fn");
       print $handle $me->{template}->transform(
                                                action=>TEMPLATE_ACTION_TOC,
@@ -315,7 +316,7 @@ sub finish
 
      # produce the index, if possible
      {
-      my $fn=join('/', $me->{options}{targetdir}, $me->buildFilename('index'));
+      my $fn=catfile($me->{options}{targetdir}, $me->buildFilename('index'));
       my $handle=new IO::File(">$fn");
       print $handle $me->{template}->transform(
                                                action=>TEMPLATE_ACTION_INDEX,
@@ -331,7 +332,7 @@ sub finish
      $nr++;
 
      # open result file
-     my $filename=join('/', $me->{options}{targetdir}, $me->buildFilename($nr));
+     my $filename=catfile($me->{options}{targetdir}, $me->buildFilename($nr));
      my $handle=new IO::File(">$filename");
 
      # start the page

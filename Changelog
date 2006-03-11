@@ -4,6 +4,42 @@
 
 // -- end of "preface"
 
+=0.04
+
+Several improvements, focussed on more valid XHTML output:
+	
+* the <embedded-(x)html> tags included for embedded parts
+  made the produced XHTML invalid, deleted;
+	
+* index now produced as better XHTML;
+
+* in XHTML strict, <a> has an \I<id> attribute, but no name;
+
+* in XHTML strict, <u> is no valid tag, so now CSS is used for \C<\\U>;
+
+* nested lists are wrapped into list points, for correct XHTML;
+
+* \C<LOCALTOC>: nested list wrapped in list points as well;
+
+* anchors now built as simple strings on base of MD5
+  checksums, to get valid XHTML addresses;
+
+* index relation <div> now has an own class, "_ppIndexRelated",
+  for easier CSS access;
+
+* building filenames we use File::Spec::catfile() now;
+
+* headlines in paged output do not need anchors (as each chapter
+  has its own page), deleted;
+
+
+=0.03
+
+* Bugfix: first link on a page could point to a label
+  on the same page, instead to the real target.
+
+* More portable pathes: built with File::Path now.
+	
 
 =0.02
 
