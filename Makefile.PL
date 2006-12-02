@@ -11,7 +11,7 @@ use ExtUtils::MakeMaker;
 # the package requires modern perl
 require 5.00503;
 
-my $version='0.04';
+my $version=0.06;
 
 # write makefile
 $ok=WriteMakefile(
@@ -21,7 +21,15 @@ $ok=WriteMakefile(
                   PREREQ_PM    => {
                                    Digest::MD5               => 0,
                                    Memoize                   => 1,
-                                   PerlPoint::Generator::XML => 0.01,
+                                   PerlPoint::Generator::XML => 0.04,
+
+                                   # in version 0.10, the cloud module distribution lacks a lot of dependencies,
+                                   # so we add them here
+                                   Class::Data::Inheritable  => 0,
+                                   Class::Accessor::Fast     => 0,
+                                   Readonly                  => 0,
+                                   HTML::TagCloud::Extended  => 0.10,
+
                                    Test::Harness             => 1.25,
                                    Test::More                => 0.11,
                                   },

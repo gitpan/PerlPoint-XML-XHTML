@@ -4,6 +4,15 @@
 
 // -- end of "preface"
 
+=0.06
+
+* added INDEXCLOUD support to PP::Generator::XHTML;
+	
+=0.05
+
+* nested lists: the wrapping list point got CSS for
+  "list-style-type: none";
+	
 =0.04
 
 Several improvements, focussed on more valid XHTML output:

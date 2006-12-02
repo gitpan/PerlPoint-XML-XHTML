@@ -5,6 +5,10 @@
 # ---------------------------------------------------------------------------------------
 # version | date     | author   | changes
 # ---------------------------------------------------------------------------------------
+# 0.06    |05-03-2006| JSTENZEL | added INDEXCLOUD support;
+#         |          | JSTENZEL | conversion of XML strings into XML objects now done by
+#         |          |          | new PP::Generator::XML function;
+# 0.05    |03-16-2006| JSTENZEL | <li> wrapping embedded lists needs special CSS;
 # 0.04    |02-21-2006| JSTENZEL | the <embedded-(x)html> tags included for embedded parts
 #         |          |          | made the produced XHTML invalid, deleted (using a
 #         |          |          | dirty manipulation of an intermediate XML::Generator
@@ -50,7 +54,7 @@ B<PerlPoint::Generator::XML::XHTML> - generates XHTML via XML
 
 =head1 VERSION
 
-This manual describes version B<0.04>.
+This manual describes version B<0.05>.
 
 =head1 SYNOPSIS
 
@@ -75,7 +79,7 @@ require 5.00503;
 package PerlPoint::Generator::XML::XHTML;
 
 # declare package version
-$VERSION=0.04;
+$VERSION=0.05;
 $AUTHOR='J. Stenzel (perl@jochen-stenzel.de), 2003-2006';
 
 
@@ -100,7 +104,8 @@ use fields qw(
 use Carp;
 use File::Spec::Functions;
 use Digest::MD5 qw(md5_hex);
-use PerlPoint::Generator::XML;
+use HTML::TagCloud::Extended;
+use PerlPoint::Generator::XML 0.04;
 use PerlPoint::Constants qw(:DEFAULT :templates);
 
 # = CODE SECTION =========================================================================
@@ -409,10 +414,7 @@ sub formatTag
      if ($item->{cfg}{data}{options}{lang}=~/^X?HTML$/i)
        {
         # just pass parts through (supplying them via XML::Generator object, not as string)
-        my $dummytag="DUMMYTAG$$";
-        my $xmlobject=$me->{xmlready}->$dummytag(@{$item->{parts}});
-        @$xmlobject=map {/^<\/?$dummytag>$/ ? () : $_} @$xmlobject;
-        push(@results, $xmlobject);
+        push(@results, $me->string2XMLObject(@{$item->{parts}}));
        }
     }
   elsif ($item->{cfg}{data}{name} eq 'F')
@@ -527,9 +529,49 @@ sub formatTag
             );
        }
     }
+  elsif ($item->{cfg}{data}{name} eq 'INDEXCLOUD')
+    {
+     # index: get quick list data structure
+     my $entries=$item->{cfg}{data}{options}{__entries};
+
+     # build a tag cloud object
+     my $cloud=HTML::TagCloud::Extended->new(
+                                             use_hot_color => 'size',
+                                            );
+
+     # configure font sizes, if necessary
+     if (exists $item->{cfg}{data}{options}{smallestFont} or exists $item->{cfg}{data}{options}{largestFont})
+      {
+       # find min and max font size
+       my $min=$item->{cfg}{data}{options}{smallestFont} || 12;  # 12 is the default of HTML::TagCloud::Extended
+       my $max=$item->{cfg}{data}{options}{largestFont}  || 36;  # 36 is the default of HTML::TagCloud::Extended
+
+       # configure cloud object
+       $cloud->base_font_size(int(($min+$max)/2));
+       $cloud->font_size_range(int(($max-$min)/2));
+      }
+
+     # configure cloud object as necessary
+     $cloud->colors->set(hot => $item->{cfg}{data}{options}{hottestColor}) if exists $item->{cfg}{data}{options}{hottestColor};
+
+     # add all index entries for the cloud
+     $cloud->add($_, '', $entries->{$_}) for keys %$entries;
+
+     # write list structure (we do not need to take care of the top limit, as this is done by the generator base module)
+     @results=$me->{$me->{xmlmode}}->div(
+                                         # own class for easier CSS access
+                                         {class=>'_ppIndexCloud'},
+
+                                         # start with an intro, if specified
+                                         exists $item->{cfg}{data}{options}{intro} ? $me->{$me->{xmlmode}}->p($item->{cfg}{data}{options}{intro}) : (),
+
+                                         # list of related topics
+                                         $me->string2XMLObject($cloud->html_and_css)
+                                        );
+    }
   elsif ($item->{cfg}{data}{name} eq 'INDEXRELATIONS')
     {
-     # get headline data
+     # get index data
      my $data=[map {$_->[0]} @{$item->{cfg}{data}{options}{__data}}];
 
      # configure list tag
@@ -638,7 +680,7 @@ sub formatTag
               if ($level<@buffered)
                 {
                  # complete closed levels and integrate them as lists
-                 push(@{$buffered[$_-1]}, $me->{xml}->li($me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))),
+                 push(@{$buffered[$_-1]}, $me->{xml}->li({style=>'list-style-type: none;'}, $me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))),
                    for reverse $level..@buffered-1;
                  
                  # delete all buffer levels which were integrated,
@@ -656,7 +698,7 @@ sub formatTag
              }
 
            # close open lists (down to the initial level depth)
-           push(@{$buffered[$_-1]}, $me->{xml}->li($me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))),
+           push(@{$buffered[$_-1]}, $me->{xml}->li({style=>'list-style-type: none;'}, $me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))),
              for reverse $startLevel+1 .. @buffered-1;
 
            # finally, build the list (on startup level), including nested lists eventually
@@ -1220,7 +1262,7 @@ as well.
 
 =head1 AUTHOR
 
-Copyright (c) Jochen Stenzel (perl@jochen-stenzel.de), 2003-2004.
+Copyright (c) Jochen Stenzel (perl@jochen-stenzel.de), 2003-2006.
 All rights reserved.
 
 This module is free software, you can redistribute it and/or modify it

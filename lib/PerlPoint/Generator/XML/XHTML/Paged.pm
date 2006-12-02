@@ -5,6 +5,7 @@
 # ---------------------------------------------------------------------------------------
 # version | date     | author   | changes
 # ---------------------------------------------------------------------------------------
+# 0.03    |03-16-2006| JSTENZEL | <li> wrapping embedded lists needs special CSS;
 # 0.02    |01-21-2006| JSTENZEL | building filenames we use File::Spec::catfile() now;
 #         |03-05-2006| JSTENZEL | in XHTML, <A> has an id attribute, but no name;
 #         |          | JSTENZEL | headlines do not need anchors (as each chapter has its
@@ -21,7 +22,7 @@ B<PerlPoint::Generator::XML::XHTML::Paged> - generates paged XHTML via XML
 
 =head1 VERSION
 
-This manual describes version B<0.02>.
+This manual describes version B<0.03>.
 
 =head1 SYNOPSIS
 
@@ -46,8 +47,8 @@ require 5.00503;
 package PerlPoint::Generator::XML::XHTML::Paged;
 
 # declare package version
-$VERSION=0.02;
-$AUTHOR='J. Stenzel (perl@jochen-stenzel.de), 2004';
+$VERSION=0.03;
+$AUTHOR='J. Stenzel (perl@jochen-stenzel.de), 2004-2006';
 
 
 
@@ -213,13 +214,13 @@ sub formatTag
         if ($item->{cfg}{data}{options}{format} eq 'bullets')
           {
            my $levelbuilder;
-           $levelbuilder=sub {$me->{xml}->ul(map {ref($_->[0]) ? $me->{xml}->li($levelbuilder->($_)) : $me->{xml}->li($plain ? $_->[1] : $link->(@$_));} @{$_[0]})};
+           $levelbuilder=sub {$me->{xml}->ul(map {ref($_->[0]) ? $me->{xml}->li({style=>'list-style-type: none;'}, $levelbuilder->($_)) : $me->{xml}->li($plain ? $_->[1] : $link->(@$_));} @{$_[0]})};
            @results=$levelbuilder->($wtoc);
           }
         elsif ($item->{cfg}{data}{options}{format} eq 'enumerated')
           {
            my $levelbuilder;
-           $levelbuilder=sub {$me->{xml}->ol(map {ref($_->[0]) ? $me->{xml}->li($levelbuilder->($_)) : $me->{xml}->li($plain ? $_->[1] : $link->(@$_));} @{$_[0]})};
+           $levelbuilder=sub {$me->{xml}->ol(map {ref($_->[0]) ? $me->{xml}->li({style=>'list-style-type: none;'}, $levelbuilder->($_)) : $me->{xml}->li($plain ? $_->[1] : $link->(@$_));} @{$_[0]})};
            @results=$levelbuilder->($wtoc);
           }
         elsif ($item->{cfg}{data}{options}{format} eq 'numbers')
@@ -487,7 +488,7 @@ as well.
 
 =head1 AUTHOR
 
-Copyright (c) Jochen Stenzel (perl@jochen-stenzel.de), 2004.
+Copyright (c) Jochen Stenzel (perl@jochen-stenzel.de), 2004-2006.
 All rights reserved.
 
 This module is free software, you can redistribute it and/or modify it
