@@ -4,6 +4,10 @@
 
 // -- end of "preface"
 
+=0.07
+
+* nested lists: removed wrapping list point;
+	
 =0.06
 
 * added INDEXCLOUD support to PP::Generator::XHTML;

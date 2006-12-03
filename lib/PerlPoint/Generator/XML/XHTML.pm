@@ -5,6 +5,7 @@
 # ---------------------------------------------------------------------------------------
 # version | date     | author   | changes
 # ---------------------------------------------------------------------------------------
+# 0.07    |02-12-2006| JSTENZEL | bugfix: nested TOC lists had additional <li> frames;
 # 0.06    |05-03-2006| JSTENZEL | added INDEXCLOUD support;
 #         |          | JSTENZEL | conversion of XML strings into XML objects now done by
 #         |          |          | new PP::Generator::XML function;
@@ -54,7 +55,7 @@ B<PerlPoint::Generator::XML::XHTML> - generates XHTML via XML
 
 =head1 VERSION
 
-This manual describes version B<0.05>.
+This manual describes version B<0.07>.
 
 =head1 SYNOPSIS
 
@@ -79,7 +80,7 @@ require 5.00503;
 package PerlPoint::Generator::XML::XHTML;
 
 # declare package version
-$VERSION=0.05;
+$VERSION=0.07;
 $AUTHOR='J. Stenzel (perl@jochen-stenzel.de), 2003-2006';
 
 
@@ -679,8 +680,8 @@ sub formatTag
               # previous level closed?
               if ($level<@buffered)
                 {
-                 # complete closed levels and integrate them as lists
-                 push(@{$buffered[$_-1]}, $me->{xml}->li({style=>'list-style-type: none;'}, $me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))),
+                 # complete closed levels and integrate them as they are
+                 push(@{$buffered[$_-1]}, $me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))
                    for reverse $level..@buffered-1;
                  
                  # delete all buffer levels which were integrated,
@@ -698,7 +699,7 @@ sub formatTag
              }
 
            # close open lists (down to the initial level depth)
-           push(@{$buffered[$_-1]}, $me->{xml}->li({style=>'list-style-type: none;'}, $me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))),
+           push(@{$buffered[$_-1]}, $me->{$me->{xmlmode}}->$listMethodName(@{$buffered[$_]}))
              for reverse $startLevel+1 .. @buffered-1;
 
            # finally, build the list (on startup level), including nested lists eventually
